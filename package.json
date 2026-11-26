@@ -1,0 +1,47 @@
+{
+  "name": "@anandommi/osm-route-planner",
+  "version": "0.1.0",
+  "description": "Heading-aware shortest path over an OpenStreetMap (.osm) road graph: oneway-aware Dijkstra with no U-turns, oriented poses and GeoJSON output.",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "lib/",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node test/smoke.js",
+    "example": "node example/run.js",
+    "prepublishOnly": "npm test"
+  },
+  "keywords": [
+    "osm",
+    "openstreetmap",
+    "routing",
+    "dijkstra",
+    "path-planning",
+    "heading"
+  ],
+  "license": "BSD-3-Clause",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.3"
+  },
+  "author": "Anand (https://github.com/AnandOmmi)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnandOmmi/osm-route-planner.git"
+  },
+  "homepage": "https://github.com/AnandOmmi/osm-route-planner#readme",
+  "bugs": {
+    "url": "https://github.com/AnandOmmi/osm-route-planner/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "types": "index.d.ts"
+}
