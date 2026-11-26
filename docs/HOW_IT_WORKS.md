@@ -11,7 +11,7 @@ flowchart LR
   C --> D[Heading-aware<br/>Dijkstra]
   D --> E[buildPosePath]
   E --> R[Result<br/>nodeIds, poses,<br/>distanceM, GeoJSON]
-  R -->|nextStart| S2[start of next leg]
+  R -->|nextStart| S2[start of next route]
 ```
 
 ## 1. Reading the OSM file (`parseOsm`)
@@ -76,13 +76,13 @@ The start and goal positions usually don't sit exactly on a road node. Each one 
 
 ## 4. Finding the path: heading-aware Dijkstra
 
-A normal shortest-path search ignores which way the vehicle faces, so it can return a route that starts with a U-turn. This search tracks heading as part of the state.
+A normal shortest-path search ignores which way the robot faces, so it can return a route that starts with a U-turn. This search tracks heading as part of the state.
 
 - **State** = `(node, heading bucket)`. Headings are rounded to 10° buckets, so the same node can be visited facing different directions.
 - **Cost** = distance driven in metres.
 - **Start state** = the start node with the start heading.
 - **Expanding a state.** From each state, the search follows every outgoing edge whose bearing is **within 90°** of the current heading. Edges that need a turn sharper than 90° are skipped, so the route never makes a U-turn or a sharp turn back.
-- **Next state** = `(edge.to, edge.bearing)`. The vehicle now faces the direction of the edge it just drove.
+- **Next state** = `(edge.to, edge.bearing)`. The robot now faces the direction of the edge it just moved along.
 - **Goal check.** The search stops at the goal node only if the arrival heading is **within 90°** of the goal heading.
 - **No path.** If nothing satisfies those rules, the call throws `NO_PATH`.
 
@@ -123,46 +123,35 @@ Each pose looks like `{ position: { lat, lon }, orientation: { x, y, z, w }, yaw
 
 `feature` is standard GeoJSON. Coordinates are `[lon, lat]`, so it can go straight onto a Leaflet or Mapbox map, or into a mission file.
 
-## 7. Multi-route (chained legs)
+## 7. Multi-route (next route from previous end)
 
 This works like the boson_webapp Route Planner: after a route is planned, the next route continues from where it ended.
 
 ```
- leg 1: start ──────────► goal1
-                            │  nextStart(leg1)
-                            ▼
- leg 2:                   start2 ──────────► goal2
+ route 1: start ──────────► goal1
+                              │  nextStart(route1)
+                              ▼
+ route 2:                   start2 ──────────► goal2
 ```
 
 `nextStart(route)` returns:
 
 - **position**: the last point of the route
-- **orientation**: the direction of the route's **last segment** (second-last point → last point), so the vehicle keeps facing the way it actually arrived. Zero-length segments at the end are skipped.
+- **orientation**: the direction of the route's **last segment** (second-last point → last point), so the robot keeps facing the way it actually arrived. Zero-length segments at the end are skipped.
 
-Two ways to use it:
-
-**One leg at a time** (a UI where the user picks each goal after seeing the route):
+`planRoute` always plans **one** route (one start, one goal). For the next route, pass `nextStart(previousRoute)` as the start and give the new goal:
 
 ```js
 const graph = parseOsm(osmText);
-let start = vehiclePose;
-const leg1 = planRoute(graph, { start, goal: goal1 });
-start = nextStart(leg1);
-const leg2 = planRoute(graph, { start, goal: goal2 });
-// undo leg2 → start = nextStart(leg1) again
+
+const route1 = planRoute(graph, { start: robotPose,         goal: goal1 });
+const route2 = planRoute(graph, { start: nextStart(route1), goal: goal2 });
+const route3 = planRoute(graph, { start: nextStart(route2), goal: goal3 });
+
+// undo route3 → plan again from nextStart(route2)
 ```
 
-**All legs at once:**
-
-```js
-const trip = planMultiRoute(graph, { start: vehiclePose, goals: [goal1, goal2, goal3] });
-trip.legs;       // one planRoute result per leg
-trip.poses;      // all poses joined; each joint point appears once
-trip.distanceM;  // total
-trip.feature;    // one LineString for the whole trip
-```
-
-If a leg fails, the thrown `RoutePlanError` has `err.leg` (0-based) and a message like `leg 2: No path matches ...`.
+**Optional, all in one call:** `planMultiRoute(graph, { start, goals: [goal1, goal2, goal3] })` runs the same loop and returns `{ routes, poses, distanceM, feature }`. If one route fails, the whole call throws with `err.leg` set, so use this only when you don't need to check or remove routes individually.
 
 ## 8. Errors
 
@@ -170,7 +159,7 @@ All errors are `RoutePlanError` with a `code`:
 
 | code | Meaning | Typical fix |
 |---|---|---|
-| `BAD_INPUT` | missing position or orientation, or an empty `goals` | check the request body |
+| `BAD_INPUT` | missing position or orientation (or empty `goals` in `planMultiRoute`) | check the request body |
 | `NO_NODES` | the OSM file has no usable nodes | wrong or empty file |
 | `SAME_NODE` | start and goal snap to the same node | pick a goal further away |
 | `NO_PATH` | no route respects one-way roads and the 90° heading rules | flip the start or goal heading, or check the road's one-way direction |

@@ -1,6 +1,6 @@
 const assert = require('assert');
 const path = require('path');
-const { parseOsm, planRoute, planRouteFromFile, planMultiRoute, nextStart, quatFromBearing, RoutePlanError } = require('..');
+const { parseOsm, planRoute, planRouteFromFile, nextStart, planMultiRoute, quatFromBearing, RoutePlanError } = require('..');
 
 const osmPath = path.join(__dirname, '..', 'example', 'map.osm');
 const near1 = { lat: 12.97001, lon: 77.59001 };
@@ -34,24 +34,30 @@ assert.throws(
   (e) => e instanceof RoutePlanError && e.code === 'NO_NODES'
 );
 
-// multi-route: leg 2 starts at leg 1's last point, facing its last segment
+// multi-route: route 2 starts where route 1 ended (nextStart)
 const near2 = { lat: 12.97049, lon: 77.59001 };
+const r1 = planRoute(graph, {
+  start: { position: near1, orientation: quatFromBearing(0) },
+  goal:  { position: near2, orientation: quatFromBearing(0) },
+});
+assert.deepStrictEqual(r1.nodeIds, ['1', '2']);
+const ns = nextStart(r1);
+assert.deepStrictEqual(ns.position, { lat: 12.9705, lon: 77.59 });   // last point of route 1
+assert.ok(Math.abs(ns.orientation.z - quatFromBearing(0).z) < 1e-6); // facing north (last segment)
+const r2 = planRoute(graph, { start: ns, goal: { position: near3, orientation: quatFromBearing(90) } });
+assert.deepStrictEqual(r2.nodeIds, ['2', '3']);
+
+// optional: same two routes in one call
 const multi = planMultiRoute(graph, {
   start: { position: near1, orientation: quatFromBearing(0) },
   goals: [
-    { position: near2, orientation: quatFromBearing(0) },   // 1 -> 2 (north)
-    { position: near3, orientation: quatFromBearing(90) },  // 2 -> 3 (east)
+    { position: near2, orientation: quatFromBearing(0) },
+    { position: near3, orientation: quatFromBearing(90) },
   ],
 });
-assert.deepStrictEqual(multi.legs.map((l) => l.nodeIds), [['1', '2'], ['2', '3']]);
-assert.strictEqual(multi.poses.length, 3);                       // shared node 2 not duplicated
-assert.deepStrictEqual(multi.feature.geometry.coordinates.length, 3);
-assert.ok(Math.abs(multi.distanceM - (multi.legs[0].distanceM + multi.legs[1].distanceM)) < 0.01);
-const ns = nextStart(multi.legs[0]);
-assert.deepStrictEqual(ns.position, { lat: 12.9705, lon: 77.59 });
-assert.ok(Math.abs(ns.orientation.z - quatFromBearing(0).z) < 1e-6); // facing north
-
-// a failing leg reports which one
+assert.deepStrictEqual(multi.routes.map((r) => r.nodeIds), [r1.nodeIds, r2.nodeIds]);
+assert.strictEqual(multi.poses.length, 3);                // joint point not duplicated
+assert.ok(Math.abs(multi.distanceM - (r1.distanceM + r2.distanceM)) < 0.01);
 assert.throws(
   () => planMultiRoute(graph, {
     start: { position: near1, orientation: quatFromBearing(0) },

@@ -1,4 +1,4 @@
-const { parseOsm, planRoute, planRouteFromOsm, planMultiRoute, nextStart, quatFromBearing, RoutePlanError } = require('./lib/core');
+const { parseOsm, planRoute, planRouteFromOsm, nextStart, planMultiRoute, quatFromBearing, RoutePlanError } = require('./lib/core');
 const { planRouteFromFile, planRouteFromUrl } = require('./lib/loaders');
 
 module.exports = {
@@ -7,8 +7,8 @@ module.exports = {
   planRouteFromOsm,
   planRouteFromFile,
   planRouteFromUrl,
-  planMultiRoute,
   nextStart,
+  planMultiRoute,
   quatFromBearing,
   RoutePlanError
 };
